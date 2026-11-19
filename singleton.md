@@ -3,30 +3,22 @@
 ## TypeScript
 
 ```typescript
-class Singleton {
-  static #instance: Singleton | undefined;
+// A module owns one immutable service; export Singleton in a reusable module.
+const Singleton = (() => {
+  const value = Math.random();
+  return Object.freeze({
+    getValue(): number {
+      return value;
+    },
+  });
+})();
 
-  // Later construction calls return the existing object before assigning value.
-  value!: number;
+const first = Singleton;
+const second = Singleton;
 
-  constructor() {
-    if (Singleton.#instance !== undefined) {
-      // A constructor can return an existing object instead of the new one.
-      return Singleton.#instance;
-    }
-
-    this.value = Math.random();
-    Singleton.#instance = this;
-  }
-
-  getValue(): number {
-    return this.value;
-  }
+if (first !== second || first.getValue() !== second.getValue()) {
+  throw new Error("Shared service invariant failed");
 }
-
-const first = new Singleton();
-const second = new Singleton();
-
 console.log(first === second); // true
 console.log(first.getValue() === second.getValue()); // true
 ```
@@ -34,35 +26,25 @@ console.log(first.getValue() === second.getValue()); // true
 ## TypeScript — ES5-compatible style
 
 ```typescript
-interface Singleton {
-  value: number;
+interface SharedService {
   getValue(): number;
 }
 
-var Singleton = (function () {
-  // The closure keeps the cached instance inaccessible to callers.
-  var instance: Singleton | undefined;
-
-  function Singleton(this: Singleton): Singleton {
-    if (instance === undefined) {
-      this.value = Math.random();
-      instance = this;
-    }
-
-    return instance;
-  }
-
-  Singleton.prototype.getValue = function (this: Singleton): number {
-    return this.value;
-  };
-
-  // Describe the construct signature of the function to TypeScript.
-  return Singleton as unknown as { new (): Singleton };
+var Singleton: SharedService = (function () {
+  var value = Math.random();
+  return Object.freeze({
+    getValue: function (): number {
+      return value;
+    },
+  });
 })();
 
-var first = new Singleton();
-var second = new Singleton();
+var first = Singleton;
+var second = Singleton;
 
+if (first !== second || first.getValue() !== second.getValue()) {
+  throw new Error("Shared service invariant failed");
+}
 console.log(first === second); // true
 console.log(first.getValue() === second.getValue()); // true
 ```
@@ -70,31 +52,27 @@ console.log(first.getValue() === second.getValue()); // true
 ## Python
 
 ```python
-from threading import Lock
-from typing import ClassVar, Self, final
+from dataclasses import dataclass
 
 
-@final
-class Singleton:
-    _instance: ClassVar[Self | None] = None
-    _lock: ClassVar[Lock] = Lock()
-    __slots__ = ("_value",)
-
-    def __new__(cls) -> Self:
-        # Lock the complete check-and-create operation, including on free-threaded builds.
-        with cls._lock:
-            if cls._instance is None:
-                instance = super().__new__(cls)
-                instance._value = 0.5
-                cls._instance = instance
-            return cls._instance
+@dataclass(frozen=True, slots=True)
+class _SharedService:
+    value: float
 
     def get_value(self) -> float:
-        return self._value
+        return self.value
 
 
-first = Singleton()
-second = Singleton()
+# Module initialization publishes one service; ordinary imports reuse the module.
+_shared = _SharedService(0.5)
+
+
+def instance() -> _SharedService:
+    return _shared
+
+
+first = instance()
+second = instance()
 
 assert first is second
 assert first.get_value() == second.get_value()
@@ -446,22 +424,14 @@ pub fn main() void {
 
 ```lua
 local Singleton = (function()
-    -- The closure owns the cached instance; callers cannot replace the cache.
-    local instance
-
-    return {
-        instance = function()
-            if instance == nil then
-                local value = 0.5
-                instance = {
-                    getValue = function(self)
-                        return value
-                    end,
-                }
-            end
-            return instance
+    -- One module service; no constructor or lazy cache is needed.
+    local value = 0.5
+    local service = {
+        getValue = function(self)
+            return value
         end,
     }
+    return { instance = function() return service end }
 end)()
 
 local first = Singleton.instance()
@@ -471,4 +441,143 @@ assert(rawequal(first, second))
 assert(first:getValue() == second:getValue())
 print(rawequal(first, second)) -- true
 print(first:getValue() == second:getValue()) -- true
+```
+
+## Scala
+
+```scala
+object Singleton:
+  private val value: Double = 0.5
+  def getValue: Double = value
+
+@main def singletonDemo(): Unit =
+  val first = Singleton
+  val second = Singleton
+  require(first eq second)
+  require(first.getValue == second.getValue)
+  println(first eq second) // true
+  println(first.getValue == second.getValue) // true
+```
+
+## Haskell
+
+```haskell
+module Main (main) where
+
+-- A pure shared service value; no mutable global or pointer-identity promise.
+data SharedService = SharedService { getValue :: Double }
+  deriving (Eq)
+
+sharedService :: SharedService
+sharedService = SharedService 0.5
+
+main :: IO ()
+main = do
+  let first = sharedService
+      second = sharedService
+  if first == second && getValue first == getValue second
+    then do
+      print (first == second) -- True: value equality
+      print (getValue first == getValue second) -- True
+    else error "Shared value invariant failed"
+```
+
+## OCaml
+
+```ocaml
+module Singleton : sig
+  type t
+  val instance : t
+  val get_value : t -> float
+end = struct
+  type t = { value : float }
+  let instance = { value = 0.5 }
+  let get_value self = self.value
+end
+
+let () =
+  let first = Singleton.instance in
+  let second = Singleton.instance in
+  (* Structural equality checks the abstract service's immutable value. *)
+  assert (first = second);
+  assert (Singleton.get_value first = Singleton.get_value second);
+  Printf.printf "%b\n%b\n"
+    (first = second)
+    (Singleton.get_value first = Singleton.get_value second)
+```
+
+## F#
+
+```fsharp
+module Singleton =
+    type Service = private { Value: float }
+    let instance = { Value = 0.5 }
+    let getValue (service: Service) = service.Value
+
+let first = Singleton.instance
+let second = Singleton.instance
+
+if not (obj.ReferenceEquals(first, second)) then
+    failwith "Different service instances"
+if Singleton.getValue first <> Singleton.getValue second then
+    failwith "Different values"
+printfn "%b" (obj.ReferenceEquals(first, second)) // true
+printfn "%b" (Singleton.getValue first = Singleton.getValue second) // true
+```
+
+## Clojure
+
+```clojure
+(ns singleton-demo)
+
+;; defonce preserves this immutable map across ordinary namespace re-evaluation.
+(defonce ^:private shared-service {:value 0.5})
+
+(defn instance [] shared-service)
+(defn get-value [service] (:value service))
+
+(let [first (instance)
+      second (instance)]
+  (when-not (and (identical? first second)
+                 (= (get-value first) (get-value second)))
+    (throw (ex-info "Shared service invariant failed" {})))
+  (println (identical? first second)) ; true
+  (println (= (get-value first) (get-value second)))) ; true
+```
+
+## Elixir
+
+```elixir
+defmodule SharedService do
+  use GenServer
+
+  def start_link(_opts), do: GenServer.start_link(__MODULE__, 0.5, name: __MODULE__)
+  def instance, do: Process.whereis(__MODULE__)
+  def get_value, do: GenServer.call(__MODULE__, :get_value)
+  def set_value(value), do: GenServer.call(__MODULE__, {:set_value, value})
+
+  @impl true
+  def init(value), do: {:ok, value}
+
+  @impl true
+  def handle_call(:get_value, _from, value), do: {:reply, value, value}
+  def handle_call({:set_value, value}, _from, _old), do: {:reply, :ok, value}
+end
+
+{:ok, supervisor} = Supervisor.start_link([SharedService], strategy: :one_for_one)
+
+try do
+  first = SharedService.instance()
+  second = SharedService.instance()
+  true = is_pid(first) and first == second
+  {:error, {:already_started, ^first}} = SharedService.start_link([])
+
+  # All clients address the same process, which serializes state updates.
+  :ok = SharedService.set_value(0.75)
+  true = SharedService.get_value() == 0.75
+  IO.puts(first == second) # true
+  IO.puts(SharedService.get_value() == 0.75) # true
+after
+  Supervisor.stop(supervisor)
+end
 ```

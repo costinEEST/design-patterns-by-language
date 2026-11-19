@@ -7,7 +7,7 @@ description: Add or revise this repository's code-only Markdown design-pattern e
 
 Read `README.md`, the relevant entry, and its `docs/<pattern>-notes.md` file first. Keep one root-level, lowercase kebab-case Markdown file per pattern, using `singleton.md` as the initial example. Update the README index to reflect only implementations actually present.
 
-The collection covers TypeScript, Python, Rust, Ruby, C, C++, Mojo, Java, Swift, Kotlin, Go, Nim, Zig, and Lua. Implement the languages requested for the current task; leave other languages for subsequent contributions.
+The collection covers TypeScript, Python, Rust, Ruby, C, C++, Mojo, Java, Swift, Kotlin, Go, Nim, Zig, Lua, Scala, Haskell, OCaml, F#, Clojure, and Elixir. Implement the languages requested for the current task; leave other languages for subsequent contributions.
 
 ## Versions
 
@@ -20,9 +20,9 @@ The collection covers TypeScript, Python, Rust, Ruby, C, C++, Mojo, Java, Swift,
 
 Pattern files contain only a pattern title, language/variant headings, and language-tagged fenced code examples. Do not add baseline paragraphs, source links, explanations, run instructions, validation tables, or tradeoff sections to those files. Keep shared language baselines in README.md. Put pattern-specific explanations, run instructions, limitations, tradeoffs, and validation records in `docs/<pattern>-notes.md`. Link the code and notes in the README pattern index.
 
-Use idiomatic standard-library features and concise inline comments for non-obvious behavior. Include runnable usage demonstrating the pattern's observable invariant, such as object identity for Singleton. Preserve existing examples' behavior during conversion unless a correction is explained in the pattern's supporting notes. Implementations need not use identical mechanics across languages.
+Use idiomatic standard-library features and concise inline comments for non-obvious behavior. Include runnable usage demonstrating the pattern's observable invariant, such as object identity for Singleton. Preserve the pattern’s intent using each language’s idioms. Do not force class-based mechanics onto functional or module-oriented languages. For Singleton, distinguish object identity, a shared immutable value, a module service, and a managed process owning state; specify the scope and lifecycle of each guarantee. Explain intentional API or behavior changes in the supporting notes. Implementations need not use identical mechanics across languages.
 
-In the pattern's supporting notes, explain when blocks must run separately and document material limitations involving concurrency, initialization, ownership, mutation, subclassing, or process boundaries where relevant. Keep run instructions, tradeoffs, and validation results there too.
+In the pattern's supporting notes, explain when blocks must run separately and document material limitations involving concurrency, initialization, ownership, mutation, subclassing, or process boundaries where relevant. Keep run instructions, tradeoffs, and validation results there too. Maintain `docs/language-guide.md` when adding languages, including what each adds and when to use it.
 
 ## Validation
 

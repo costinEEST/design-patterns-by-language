@@ -1,10 +1,11 @@
 # Design patterns by language
 
-A collection of design patterns with idiomatic examples in TypeScript, Python, Rust, Ruby, C, C++, Mojo, Java, Swift, Kotlin, Go, Nim, Zig, and Lua.
+A collection of design patterns with idiomatic examples in TypeScript, Python, Rust, Ruby, C, C++, Mojo, Java, Swift, Kotlin, Go, Nim, Zig, Lua, Scala, Haskell, OCaml, F#, Clojure, and Elixir.
 
 ## Contents
 
 - [Patterns](#patterns)
+- [Why these languages](#why-these-languages)
 - [Language baselines](#language-baselines)
 - [TypeScript compatibility](#typescript-compatibility)
 - [Adding a pattern](#adding-a-pattern)
@@ -13,13 +14,17 @@ A collection of design patterns with idiomatic examples in TypeScript, Python, R
 
 | Pattern | Code | Supporting documentation |
 | --- | --- | --- |
-| Singleton | [Examples in all fourteen languages](singleton.md) | [Run instructions, implementation notes, validation, and tradeoffs](docs/singleton-notes.md) |
+| Singleton | [Examples in all twenty languages](singleton.md) | [Run instructions, implementation notes, validation, and tradeoffs](docs/singleton-notes.md) |
 
 Each pattern file contains only a title, language/variant headings, and code examples with usage and helpful inline comments. Run blocks independently.
 
+## Why these languages
+
+See [the language guide](docs/language-guide.md) for what each language adds, when to use it, and how its idioms shape pattern implementations.
+
 ## Language baselines
 
-Use the latest stable release available by **November 13, 2026**, the repository's cutoff within November 2026. The versions below were verified on that date against the linked official sources. Exclude previews, betas, release candidates, and nightlies; do not assume later November releases are available. C and C++ baselines refer to published standards, independently of compiler versions; C++26 is not used as a published standard.
+Use the latest stable release available by **November 13, 2026**, the repository's cutoff within November 2026. The original fourteen baselines were recorded on that date. The six additions were checked on November 19, 2026 against official sources for releases available by the same cutoff. Exclude previews, betas, release candidates, and nightlies; do not assume later November releases are available. C and C++ baselines refer to published standards, independently of compiler versions; C++26 is not used as a published standard.
 
 | Language | Baseline | Official source |
 | --- | --- | --- |
@@ -37,6 +42,12 @@ Use the latest stable release available by **November 13, 2026**, the repository
 | Nim | 2.4.2 | [official release announcement on the Nim homepage](https://nim-lang.org/#recent-articles) |
 | Zig | 0.17.1 | [official stable downloads](https://ziglang.org/download/) |
 | Lua | 5.5.1 | [official version history](https://www.lua.org/versions.html) |
+| Scala | 3.10.1 (JVM; released November 11, 2026) | [official release](https://www.scala-lang.org/news/3.10.1/) |
+| Haskell | GHC 9.14.1 (released December 19, 2025) | [official release](https://www.haskell.org/ghc/blog/20251219-ghc-9.14.1-released.html), [release history](https://www.haskell.org/ghc/blog.html) |
+| OCaml | 5.5.2 (released October 23, 2026) | [official releases](https://ocaml.org/releases) |
+| F# | F# 11, .NET SDK 11.0.100 (GA November 10, 2026; no preview features) | [language notes](https://learn.microsoft.com/en-us/dotnet/fsharp/whats-new/fsharp-11), [SDK release](https://github.com/dotnet/core/blob/main/release-notes/11.0/11.0.0/11.0.0.md) |
+| Clojure | 1.12.6 (September 2026; JVM) | [official older releases](https://clojure.org/releases/downloads_older) |
+| Elixir | 1.20.5 (released October 29, 2026; Erlang/OTP 27 or newer) | [official release](https://github.com/elixir-lang/elixir/releases/tag/v1.20.5), [runtime requirements](https://elixir-lang.org/install/) |
 
 These shared baselines apply to every pattern. Actual local toolchain versions and execution results are recorded in each pattern's supporting documentation.
 
@@ -44,11 +55,11 @@ These shared baselines apply to every pattern. Actual local toolchain versions a
 
 Only TypeScript includes a legacy alternative: modern TypeScript and ES5-compatible style. ES5 is a JavaScript output target, not a second TypeScript release. Use ES2022 or newer for the modern Singleton example.
 
-The [ES5-compatible Singleton example](singleton.md#typescript--es5-compatible-style) uses a closure, function constructor, and prototype method. Compile away its type annotations and assertions with a TypeScript compiler that supports `--target ES5` before running it as JavaScript. Compiler support for legacy targets must be checked separately from the modern language baseline. See the [target documentation](https://www.typescriptlang.org/tsconfig/target.html).
+The [ES5-compatible Singleton example](singleton.md#typescript--es5-compatible-style) uses a closure and a frozen shared service object. Compile away its type annotations with a TypeScript compiler that supports `--target ES5` before running it as JavaScript. Compiler support for legacy targets must be checked separately from the modern language baseline. See the [target documentation](https://www.typescriptlang.org/tsconfig/target.html).
 
 ## Adding a pattern
 
-Create a root-level Markdown file named after the pattern in lowercase kebab-case, following [singleton.md](singleton.md). Keep that file limited to labeled code examples and put explanations, run instructions, limitations, tradeoffs, and validation records in `docs/<pattern>-notes.md`.
+Create a root-level Markdown file named after the pattern in lowercase kebab-case, following [singleton.md](singleton.md). Preserve the pattern’s intent using each language’s idioms; state the observable guarantee and its scope in the supporting notes. A shared immutable value, module service, and managed stateful process are different guarantees. Keep that file limited to labeled code examples and put explanations, run instructions, limitations, tradeoffs, and validation records in `docs/<pattern>-notes.md`.
 
 Add links to both files in the pattern index above. Verify language versions against official sources and maintain the shared baseline table here. Keep documentation contents lists and relative links current.
 

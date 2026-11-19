@@ -5,27 +5,46 @@
 ## Contents
 
 - [Overview](#overview)
+- [Observable guarantees](#observable-guarantees)
 - [Implementation notes](#implementation-notes)
 - [Validation](#validation)
 - [Tradeoffs](#tradeoffs)
 
 ## Overview
 
-Keep one shared instance and return it on subsequent access. The TypeScript examples initialize a random value once; the other languages use a fixed value to emphasize shared identity. Each example demonstrates that callers receive the same instance and value.
+Preserve a single access point to a shared service using each language's idioms. Most examples demonstrate reference identity and a stable value. Haskell and OCaml demonstrate an immutable value exposed through one binding; their equality checks do not prove unique allocation. Elixir demonstrates a single named process owning changing state. See [why each language is included](language-guide.md).
+
+TypeScript initializes a random value once; the other immutable services use `0.5`. Elixir starts at `0.5` and changes to `0.75` to demonstrate shared state ownership. Run blocks independently.
+
+## Observable guarantees
+
+| Approach | Languages | Demonstrated guarantee | Boundary |
+| --- | --- | --- | --- |
+| Frozen module service | TypeScript (both styles), Python | Repeated access returns the same read-only service and value. | One module evaluation/import identity; Python privacy and freezing are ordinary API protections. |
+| Runtime-managed shared object | Ruby, Java, Swift, Kotlin, Scala | Repeated access has reference identity. | One class/module loading context; construction safety does not synchronize later mutation. |
+| Static storage or once-only accessor | Rust, C, C++, Go, Nim, Zig, Mojo | Repeated access refers to shared storage. | One linked storage/module instance; several languages still permit constructing other values of the type. |
+| Module service with a private captured value | Lua | Repeated access returns the same table and captured value. | One closure evaluation/Lua module cache entry; the table itself remains mutable. |
+| Immutable value behind an API | Haskell, OCaml | Repeated access yields equal service data. | No physical identity claim; Haskell's optimizer may change allocation and sharing. |
+| Module-bound immutable reference | F#, Clojure | Repeated access returns the same immutable record/map reference. | One loaded module/namespace binding; reloads and deliberate rebinding have separate semantics. |
+| Supervised named state owner | Elixir | A second named start fails while the process is alive; clients observe its serialized state updates. | One BEAM node and registered name; restart replaces PID and resets state. |
+
+These are related solutions, not interchangeable uniqueness guarantees. Use the identity-based implementations when one reference is itself a requirement. Use immutable values when shared data is sufficient. Use a managed process when clients need one owner coordinating mutable state. None of these examples enforces uniqueness across independent operating-system processes or machines.
 
 ## Implementation notes
 
 ### TypeScript — modern
 
-The `#instance` field is private at runtime. The definite assignment assertion (`!`) tells TypeScript that every returned instance has an initialized value. The constructor remains public to preserve the `new Singleton()` API.
+Run as `node singleton.ts` with a Node version supporting TypeScript type stripping, or compile with a compatible TypeScript compiler targeting ES2022 or newer. One module binding exposes a frozen object whose method closes over the initialized value. In a reusable module, export this binding and import it from clients. `Object.freeze` is shallow, but this service contains only a function and a captured scalar. Workers, independent module copies, and re-evaluation create separate services.
+
+This replaces the former public constructor that returned a cached instance. Callers now use `Singleton` directly instead of `new Singleton()`; the random value is private, and creation happens during module evaluation rather than on first construction. This intentionally removes the mutable public `value` and subclassing behavior.
 
 ### TypeScript — ES5-compatible style
 
-Run the blocks separately: they intentionally reuse the same names. Each implementation caches one instance per evaluation of its class or closure, rather than sharing an instance across processes, workers, or separate module copies. Avoid subclassing these implementations: returning a cached base instance does not preserve subclass identity. The public `value` remains mutable, as in the original examples.
+Run the blocks separately: they intentionally reuse the same names. Compile with a TypeScript compiler supporting `--target ES5`. The closure and frozen object provide the same module-service API as the modern block without modern JavaScript syntax. `Object.freeze` is available in ES5. Node's type stripping can check its runtime behavior but does not verify ES5 compiler output or type checking. This replaces the former function-constructor/prototype cache and mutable public value.
 
 ### Python
 
-Initialization happens in `__new__`, because `__init__` would run on every constructor call. `@final` tells type checkers to reject subclasses; it does not enforce that restriction at runtime. The lock protects creation, while `_value` is private by convention. Deliberate reflection, copying, or serialization requires separate handling if uniqueness must hold through those operations.
+Run with `python3 singleton.py`. Ordinary imports reuse the initialized module and its frozen dataclass service; no custom `__new__` or creation lock is needed. Keep the service and accessor in a dedicated module in a real program. The public API changes from `Singleton()` to `instance()` while preserving shared identity and read access. The frozen record prevents ordinary field assignment; its scalar field needs no deeper freezing. `_SharedService` and `_shared` are private by convention, so callers can deliberately create another record or replace module bindings. Module reloads, separate interpreters, alternate import identities, and separate processes do not share this guarantee.
 
 ### Rust
 
@@ -93,13 +112,51 @@ The accessor returns a pointer to one immutable struct with static lifetime, so 
 
 Run with `lua singleton.lua` using the Lua 5.5.1 interpreter.
 
-The closure caches one table on first access and keeps its value in a private local variable. `rawequal` checks table identity without invoking equality metamethods. The accessor does not yield, so initialization completes before another coroutine in the same Lua state can access it. Separate Lua states or separate evaluations of the closure have their own instances. The returned table remains mutable: callers can replace its methods even though the captured value is private. For a reusable module, return the service API from a module and use `require` to cache it by module name within that Lua state. See the [Lua 5.5 reference manual](https://www.lua.org/manual/5.5/manual.html).
+The closure creates one service table during evaluation and keeps its scalar value in a private local. `rawequal` checks identity. This replaces the former lazy constructor cache while preserving `Singleton.instance()` and the observed value. The returned table and accessor table remain mutable; callers can replace methods even though the captured value is private. For a reusable module, return the service API from a file and use `require`, whose cache is scoped to a module name within one Lua state. Separate evaluations and states have their own service. See the [Lua manual](https://www.lua.org/manual/5.5/manual.html).
+
+### Scala
+
+Save as `singleton.scala` and run with `scala run singleton.scala --scala 3.10.1` using the Scala CLI launcher.
+
+A top-level `object` directly expresses a lazily initialized singleton; no handwritten constructor cache is needed. `eq` checks reference identity. The private immutable scalar supports concurrent reads; mutable fields would require their own synchronization. The JVM scope is one defining class loader, not all JVMs or every class loader. See [singleton objects](https://docs.scala-lang.org/tour/singleton-objects.html).
+
+### Haskell
+
+Save as `singleton.hs` and run with `runghc singleton.hs`, or compile with `ghc -Wall singleton.hs -o singleton`.
+
+`sharedService` is a pure top-level binding. The example checks structural equality and a stable field value, not pointer identity or exactly-once resource acquisition. Lazy evaluation and compiler optimization can alter physical sharing without changing the program's meaning. The constructor stays internal through `Main`'s export list; in a library, move the service into its own module and export the abstract type, binding, and getter. No `unsafePerformIO` or mutable global is needed. Acquire real resources in `IO` and pass them explicitly with a controlled lifetime. See [pure values](https://www.haskell.org/tutorial/goodies.html) and [IO](https://www.haskell.org/tutorial/io.html).
+
+### OCaml
+
+Save as `singleton.ml` and run with `ocaml singleton.ml`, or compile with `ocamlopt -o singleton singleton.ml`.
+
+The sealed module signature exposes an abstract type, an immutable instance, and a getter. Clients cannot ordinarily construct or update the hidden record. The example checks structural equality (`=`); physical equality of immutable values is not an API promise. Module initialization supplies the binding, rather than a class constructor or runtime resource cache. Functor applications or different loaded implementations can introduce other service modules. See [modules](https://ocaml.org/docs/modules).
+
+### F#
+
+Save as `singleton.fsx` and run with `dotnet fsi --langversion:11.0 singleton.fsx` using .NET SDK 11.0.100. No preview language features are required.
+
+A module binds one immutable record with a private representation. `obj.ReferenceEquals` deliberately checks reference identity rather than record structural equality. Ordinary clients cannot invoke its record constructor outside the module. Module initialization is managed by the runtime; separate loading contexts or script evaluations can produce separate bindings. Adding `mutable` fields would need synchronization. See [F# modules](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/modules).
+
+### Clojure
+
+Save as `singleton.clj` and run with `clojure -Sdeps '{:deps {org.clojure/clojure {:mvn/version "1.12.6"}}}' -M singleton.clj`.
+
+`defonce` binds one immutable map and preserves it across ordinary namespace re-evaluation; `identical?` checks the returned reference. The Var itself can still be deliberately rebound or removed, and removing/recreating a namespace creates a new binding. `^:private` expresses an API boundary, not a security boundary. Namespace loading and REPL redefinition are different from serializing access to mutable state. For changing state, choose an atom or ref as appropriate rather than mutating the immutable map. See [Vars](https://clojure.org/reference/vars).
+
+### Elixir
+
+Save as `singleton.exs` and run with `elixir singleton.exs`. Run in a fresh VM so no service is already registered under `SharedService`.
+
+The supervisor starts one named `GenServer`. Concurrent attempts to register the same local name are rejected by the runtime; the example checks `{:already_started, pid}` and proves that a subsequent read observes the state update. Synchronous calls are processed serially. The private process state changes through messages; module code itself is not the stateful instance. In an application, place the child under the application's existing supervision tree. The script stops its supervisor after the demonstration.
+
+The registered name is unique only on one BEAM node. On failure, supervision can start a replacement with a new PID and initial state `0.5`; it does not preserve in-memory state. Calls during failure/restart can exit, and a captured PID can become stale. Distributed uniqueness and persistent state need additional coordination. See [GenServer](https://hexdocs.pm/elixir/GenServer.html).
 
 ## Validation
 
-The non-TypeScript examples use a fixed value (`0.5`) to keep attention on shared identity and initialization. Run each code block independently. All implementations are scoped to their program/module or class-loading environment; none coordinate a single instance across separate processes.
+The immutable examples check stable values; most also check identity. Haskell and OCaml check value equality, while Elixir checks registration exclusivity and updated state. See the guarantee table above for what each check establishes.
 
-The following local checks ran on November 13, 2026. Every executed example passed its identity and value checks and printed two true results. The [release baselines in the README](../README.md#language-baselines) are separate from the installed toolchains below; execution on an older compiler does not verify the latest release's compiler.
+The following historical checks ran on November 13, 2026, before the module-service revisions below. The Python result applies to the previous constructor-based example. Every executed example passed its identity and value checks and printed two true results. The [release baselines in the README](../README.md#language-baselines) are separate from the installed toolchains below; execution on an older compiler does not verify the latest release's compiler.
 
 | Example | Local toolchain | Result |
 | --- | --- | --- |
@@ -117,6 +174,23 @@ The following local checks ran on November 13, 2026. Every executed example pass
 | Zig | Not installed | Documentation review only; execution unverified |
 | Lua | Not installed | Execution unverified |
 
+### November 19, 2026 revision checks
+
+| Changed or new example | Local check | Result |
+| --- | --- | --- |
+| TypeScript — modern | Node v26.13.0, native TypeScript stripping | Passed shared-identity and stable-value checks; type checking/compiler output unverified |
+| TypeScript — ES5-compatible style | Node v26.13.0, native TypeScript stripping | Passed runtime checks; ES5 compilation and type checking unverified (no TypeScript compiler installed) |
+| Python | Python 3.15.2 | Passed identity/value checks, ordinary import reuse, and rejection of field assignment |
+| Lua | No interpreter installed | Reviewed module-service API and closure scope; execution unverified |
+| Scala | No Scala launcher/compiler installed | Reviewed against singleton-object documentation; execution unverified |
+| Haskell | No GHC/runghc installed | Reviewed pure value semantics and usage; execution unverified |
+| OCaml | No interpreter/compiler installed | Reviewed module abstraction and structural equality; execution unverified |
+| F# | No .NET SDK installed | Reviewed module and immutable-record API; execution unverified |
+| Clojure | No Clojure CLI installed | Reviewed namespace binding and identity checks; execution unverified |
+| Elixir | No Elixir/Erlang toolchain installed | Reviewed named registration, callbacks, supervision, and cleanup; execution unverified |
+
+The eleven other language code blocks were compared against the previous revision and are byte-for-byte unchanged. Checked all 21 blocks (twenty languages plus the TypeScript legacy variant), the code-only entry format, balanced Markdown fences, relative documentation links and anchors, README language coverage, and whitespace with `git diff --check`. Missing toolchains mean the new examples' runtime behavior remains unverified locally; documentation review is not an execution result.
+
 ## Tradeoffs
 
-A singleton can represent shared configuration or a resource registry, but it introduces shared mutable state and makes tests harder to isolate. Prefer passing a dependency explicitly when callers need independent instances or controlled lifetimes.
+A singleton can represent shared configuration or a resource registry. When mutable, it introduces shared state and makes tests harder to isolate. Prefer passing a dependency explicitly when callers need independent instances or controlled lifetimes.
